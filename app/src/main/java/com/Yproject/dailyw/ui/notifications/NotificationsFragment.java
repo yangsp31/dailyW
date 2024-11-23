@@ -16,7 +16,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.GridLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -35,7 +37,7 @@ import java.util.Set;
 public class NotificationsFragment extends Fragment {
     private TextView tvTime;
     private Button btnTimePicker, btnSet;
-    private GridLayout gridWeekdays;
+    private LinearLayout linearWeekdays;
     private List<Integer> selectedWeekdays = new ArrayList<>();
     private Calendar calendar = Calendar.getInstance();
     private SharedPreferences sharedPreferences;
@@ -56,31 +58,14 @@ public class NotificationsFragment extends Fragment {
         tvTime = root.findViewById(R.id.btnTimePicker);
         btnTimePicker = root.findViewById(R.id.btnTimePicker);
         btnSet = root.findViewById(R.id.btnSet);
-        gridWeekdays = root.findViewById(R.id.gridWeekdays);
-        gridWeekdays.setRowCount(1);
-        gridWeekdays.setColumnCount(7);
+        linearWeekdays = root.findViewById(R.id.linearWeekdays);
 
         sharedPreferences = getContext().getSharedPreferences("ScheduleData", MODE_PRIVATE);
 
         for (int i = 0; i < weekdays.length; i++) {
-            Button dayButton = new Button(getContext());
-            dayButton.setText(weekdays[i]);
-            dayButton.setTag(i);
-            dayButton.setTextSize(20f);
-            dayButton.setTextColor(Color.WHITE);
-            dayButton.setBackgroundResource(R.drawable.noset_button);
-            dayButton.setOnClickListener(v -> toggleWeekday((int) v.getTag(), dayButton));
-            GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-            params.width = 69;
-            params.rightMargin = 12;
-            params.leftMargin = 12;
-            params.topMargin = 20;
-            params.rowSpec = GridLayout.spec(0);
-            params.columnSpec = GridLayout.spec(i);
+            Button dayButton = getButton(i);
 
-            dayButton.setLayoutParams(params);
-
-            gridWeekdays.addView(dayButton);
+            linearWeekdays.addView(dayButton);
         }
 
         btnTimePicker.setOnClickListener(v -> showTimePicker());
@@ -93,6 +78,24 @@ public class NotificationsFragment extends Fragment {
         });
 
         return root;
+    }
+
+    @NonNull
+    private Button getButton(int i) {
+        Button dayButton = new Button(getContext());
+        dayButton.setText(weekdays[i]);
+        dayButton.setTag(i);
+        dayButton.setTextSize(20f);
+        dayButton.setTextColor(Color.WHITE);
+        dayButton.setBackgroundResource(R.drawable.noset_button);
+        dayButton.setOnClickListener(v -> toggleWeekday((int) v.getTag(), dayButton));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(100, LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        params.setMargins(12, 20, 12, 20);  // 여백 설정
+
+        dayButton.setLayoutParams(params);
+        return dayButton;
     }
 
     private void toggleWeekday(int index, Button button) {
@@ -108,8 +111,8 @@ public class NotificationsFragment extends Fragment {
     private void resetWeekdaysSelection() {
         selectedWeekdays.clear();
 
-        for (int i = 0; i < gridWeekdays.getChildCount(); i++) {
-            View child = gridWeekdays.getChildAt(i);
+        for (int i = 0; i < linearWeekdays.getChildCount(); i++) {
+            View child = linearWeekdays.getChildAt(i);
             if (child instanceof Button) {
                 ((Button) child).setBackgroundResource(R.drawable.noset_button);
             }
@@ -145,6 +148,8 @@ public class NotificationsFragment extends Fragment {
 
             sharedPreferences.edit().remove(String.valueOf(day)).apply();
             sharedPreferences.edit().putStringSet(String.valueOf(day), timeSet).apply();
+
+            Toast.makeText(requireContext(), "Success", Toast.LENGTH_SHORT).show();
 
             try{
                 scheduleAlarm(requireContext());

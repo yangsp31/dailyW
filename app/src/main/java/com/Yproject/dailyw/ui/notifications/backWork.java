@@ -42,6 +42,10 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public class backWork extends Worker {
+    private BluetoothSocket bluetoothSocket;
+    private InputStream inputStream;
+    private OutputStream outputStream;
+
     public backWork(Context context, WorkerParameters workerParams) {
         super(context, workerParams);
     }
@@ -54,7 +58,7 @@ public class backWork extends Worker {
         Context context = getApplicationContext();
 
         if (macAddress == null) {
-            return Result.retry();
+            return Result.failure();
         }
 
         BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
@@ -64,173 +68,83 @@ public class backWork extends Worker {
             return Result.failure();
         }
 
-        if (isDeviceConnected(bluetoothManager, bluetoothAdapter, macAddress)) {
-            BluetoothDevice device = bluetoothAdapter.getRemoteDevice(macAddress);
+        BluetoothDevice device = bluetoothAdapter.getRemoteDevice(macAddress);
 
-            long startTime = System.currentTimeMillis();
-            boolean responseReceived = false;
+        if (!initializeConnection(device)) {
+            return Result.failure();
+        }
 
-            while (System.currentTimeMillis() - startTime < 5 * 60 * 1000) {
-                responseReceived = sendBluetoothDataAndWaitForResponse(device, "A");
-                if (responseReceived) {
-                    break;
-                }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
+        try {
+            boolean responseReceived = sendBluetoothDataAndWaitForResponse("A");
 
             if (responseReceived) {
-                try {
-                    String response = waitForDMessage(4000, device);
+                String response = waitForDMessage(4000);
 
-                    if ("D".equals(response)) {
-                        sendToBluetooth("W", device);
+                if ("D".equals(response)) {
+                    String weightData = sendToBluetooth("W");
 
-                        String weightData = "";
-
-                        while(Float.parseFloat(weightData) < 3.0) {
-                            weightData = readFromBluetooth(device);
-                        }
-
-                        float weight = Float.parseFloat(weightData);
-                        saveWeightData(weight);
-
-                        return Result.success();
-                    } else {
-                        return Result.retry();
+                    if (Float.parseFloat(weightData) < 3.0) {
+                        return Result.failure();
                     }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                    return Result.retry();
-                }
-            } else {
-                return Result.retry();
-            }
-        } else {
-            BluetoothDevice device = bluetoothAdapter.getRemoteDevice(macAddress);
-            boolean isConnected = attemptBluetoothConnection(device);
 
-            if (isConnected) {
-                long startTime = System.currentTimeMillis();
-                boolean responseReceived = false;
+                    float weight = Float.parseFloat(weightData);
+                    saveWeightData(weight);
 
-                while (System.currentTimeMillis() - startTime < 5 * 60 * 1000) {
-                    responseReceived = sendBluetoothDataAndWaitForResponse(device, "A");
-                    if (responseReceived) {
-                        break;
-                    }
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if (responseReceived) {
-                    try {
-                        String response = waitForDMessage(4000, device);
-
-                        if ("D".equals(response)) {
-                            sendToBluetooth("W", device);
-
-                            String weightData = "";
-
-                            while(Float.parseFloat(weightData) < 3.0) {
-                                weightData = readFromBluetooth(device);
-                            }
-
-                            float weight = Float.parseFloat(weightData);
-                            saveWeightData(weight);
-
-                            return Result.success();
-                        } else {
-                            return Result.retry();
-                        }
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                        return Result.retry();
-                    }
+                    return Result.success();
                 } else {
-                    return Result.retry();
+                    return Result.failure();
                 }
             } else {
-                return Result.retry();
+                return Result.failure();
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Result.retry();
+        } finally {
+            closeConnection();
         }
     }
 
-    private boolean isDeviceConnected(BluetoothManager bluetoothManager, BluetoothAdapter bluetoothAdapter, String macAddress) {
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            return false; //
-        }
-
-        if (ActivityCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            return false;
-        }
-
-        Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-
-        for (BluetoothDevice device : pairedDevices) {
-            if (device.getAddress().equals(macAddress)) {
-                int connectionState = bluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
-
-                return connectionState == BluetoothAdapter.STATE_CONNECTED;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean attemptBluetoothConnection(BluetoothDevice device) {
-        BluetoothSocket bluetoothSocket = null;
-
+    private boolean initializeConnection(BluetoothDevice device) {
         try {
             if (ActivityCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 return false;
+            }
+
+            if (bluetoothSocket != null && bluetoothSocket.isConnected()) {
+                return true;
             }
 
             UUID uuid = device.getUuids()[0].getUuid();
             bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid);
 
             bluetoothSocket.connect();
+
+            inputStream = bluetoothSocket.getInputStream();
+            outputStream = bluetoothSocket.getOutputStream();
 
             return true;
+
         } catch (IOException e) {
             e.printStackTrace();
+            closeConnection();
 
             return false;
-        } finally {
-            try {
-                if (bluetoothSocket != null) {
-                    bluetoothSocket.close();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
     }
 
-    private boolean sendBluetoothDataAndWaitForResponse(BluetoothDevice device, String data) {
-        BluetoothSocket bluetoothSocket = null;
-        OutputStream outputStream = null;
-        InputStream inputStream = null;
-        boolean responseReceived = false;
-
+    private void closeConnection() {
         try {
-            if (ActivityCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
+            if (inputStream != null) inputStream.close();
+            if (outputStream != null) outputStream.close();
+            if (bluetoothSocket != null) bluetoothSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-            UUID uuid = device.getUuids()[0].getUuid();
-            bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid);
-
-            bluetoothSocket.connect();
-            outputStream = bluetoothSocket.getOutputStream();
-            inputStream = bluetoothSocket.getInputStream();
-
+    private boolean sendBluetoothDataAndWaitForResponse(String data) {
+        try {
             outputStream.write(data.getBytes());
             outputStream.flush();
 
@@ -240,79 +154,73 @@ public class backWork extends Worker {
 
             while (System.currentTimeMillis() - startTime < 100) {
                 if ((bytesRead = inputStream.read(buffer)) != -1) {
-                    String response = new String(buffer, 0, bytesRead);
-                    if (response.equals("A")) {
-                        responseReceived = true;
-
-                        break;
+                    String response = new String(buffer, 0, bytesRead).trim();
+                    Log.d("BluetoothResponse", response);
+                    if ("A".equals(response)) {
+                        return true;
                     }
                 }
             }
-
         } catch (IOException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (bluetoothSocket != null) {
-                    bluetoothSocket.close();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+
+            return false;
         }
 
-        return responseReceived;
+        return false;
     }
 
-    private String waitForDMessage(long timeout, BluetoothDevice device) throws InterruptedException {
+    private String waitForDMessage(long timeout) throws InterruptedException {
         long startTime = System.currentTimeMillis();
-        String response = null;
 
         while (System.currentTimeMillis() - startTime < timeout) {
-            response = readFromBluetooth(device);
+            String response = readFromBluetooth();
+
             if ("D".equals(response)) {
                 return response;
             }
+
             Thread.sleep(100);
         }
-
-        return response;
+        return null;
     }
 
-    private String readFromBluetooth(BluetoothDevice device) {
+    private String readFromBluetooth() {
         try {
-            if (ActivityCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                return null;
+            byte[] buffer = new byte[1024];
+            int bytesRead = inputStream.read(buffer);
+
+            if (bytesRead != -1) {
+                return new String(buffer, 0, bytesRead).trim();
             }
-
-            UUID uuid = device.getUuids()[0].getUuid();
-            BluetoothSocket bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid);
-
-            InputStream inputStream = bluetoothSocket.getInputStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-
-            return reader.readLine();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+        return null;
+    }
+
+    private String sendToBluetooth(String message) {
+        try {
+            outputStream.write(message.getBytes());
+            outputStream.flush();
+            Log.d("BluetoothSend", "Message sent: " + message);
+
+            byte[] buffer = new byte[1024];
+            int bytesRead = inputStream.read(buffer);
+
+            if (bytesRead != -1) {
+                String response = new String(buffer, 0, bytesRead).trim();
+                Log.d("BluetoothResponse", "Response received: " + response);
+
+                return response;
+            }
+        } catch (IOException e) {
+            Log.e("BluetoothError", "Failed to send or receive data.", e);
 
             return null;
         }
-    }
 
-    private void sendToBluetooth(String message, BluetoothDevice device) {
-        try {
-            if (ActivityCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                return;
-            }
-
-            UUID uuid = device.getUuids()[0].getUuid();
-            BluetoothSocket bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid);
-
-            OutputStream outputStream = bluetoothSocket.getOutputStream();
-            outputStream.write(message.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        return null;
     }
 
     private void saveWeightData(float weight) {
@@ -323,21 +231,33 @@ public class backWork extends Worker {
 
         SharedPreferences sharedPreferencesWeight = getApplicationContext().getSharedPreferences("WeightData", Context.MODE_PRIVATE);
 
-        String json = sharedPreferencesWeight.getString(String.valueOf(calendar.get(Calendar.MONTH + 1)), "[]");
+        String json = sharedPreferencesWeight.getString(String.valueOf(calendar.get(Calendar.MONTH) + 1), "[]");
         Type type = new TypeToken<List<weightStructure>>(){}.getType();
         List<weightStructure> weights = gson.fromJson(json, type);
 
         if(weights != null) {
-            weights.add(new weightStructure(weight, currentDate, currentDateStr));
+            boolean dateExists = false;
 
-            sharedPreferencesWeight.edit().remove(String.valueOf(calendar.get(Calendar.MONTH + 1))).apply();
-            sharedPreferencesWeight.edit().putString(String.valueOf(calendar.get(Calendar.MONTH + 1)), gson.toJson(weights)).apply();
+            for (int i = 0; i < weights.size(); i++) {
+                if (weights.get(i).getDateStr().equals(currentDateStr)) {
+                    weights.set(i, new weightStructure(weight, currentDate, currentDateStr));
+                    dateExists = true;
+                    break;
+                }
+            }
+
+            if (!dateExists) {
+                weights.add(new weightStructure(weight, currentDate, currentDateStr));
+            }
+
+            sharedPreferencesWeight.edit().remove(String.valueOf(calendar.get(Calendar.MONTH) + 1)).apply();
+            sharedPreferencesWeight.edit().putString(String.valueOf(calendar.get(Calendar.MONTH) + 1), gson.toJson(weights)).apply();
         }
         else {
             weightStructure newRecord = new weightStructure(weight, currentDate, currentDateStr);
             Objects.requireNonNull(weights).add(newRecord);
 
-            sharedPreferencesWeight.edit().putString(String.valueOf(calendar.get(Calendar.MONTH + 1)), gson.toJson(weights)).apply();
+            sharedPreferencesWeight.edit().putString(String.valueOf(calendar.get(Calendar.MONTH) + 1), gson.toJson(weights)).apply();
         }
     }
 }

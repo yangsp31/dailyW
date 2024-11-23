@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public class HomeFragment extends Fragment {
@@ -54,7 +55,9 @@ public class HomeFragment extends Fragment {
         calendar = Calendar.getInstance();
         homeRepository repo = new homeRepository(requireContext());
 
-        List<weightStructure> weights = repo.getWeights(String.valueOf(calendar.get(Calendar.MONTH + 1)));
+        repo.setDummyData();
+
+        List<weightStructure> weights = repo.getWeights(String.valueOf(calendar.get(Calendar.MONTH) + 1));
         List<Entry> entries = new ArrayList<>();
         List<String> xLabels = new ArrayList<>();
 
@@ -86,7 +89,7 @@ public class HomeFragment extends Fragment {
             public void onValueSelected(Entry e, Highlight h) {
                 double value = e.getY();
 
-                String text = "" + value;
+                String text = String.format(Locale.ROOT, "%.2f", value);
                 valueTextView.setText(text);
             }
 
@@ -120,7 +123,7 @@ public class HomeFragment extends Fragment {
         lineChart.getDescription().setEnabled(false);
         lineChart.getAxisLeft().setDrawGridLines(true);
         lineChart.getAxisLeft().setDrawLabels(false);
-        lineChart.getXAxis().setLabelRotationAngle(12f);
+        lineChart.getXAxis().setLabelRotationAngle(16f);
 
         lineChart.invalidate();
         return root;

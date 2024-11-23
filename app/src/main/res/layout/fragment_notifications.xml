@@ -47,14 +47,14 @@
             android:textColor="#FFFFFF"
             android:textSize="40sp" />
 
-        <GridLayout
-            android:id="@+id/gridWeekdays"
+        <LinearLayout
+            android:id="@+id/linearWeekdays"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="5dp"
-            android:columnCount="7">
-            <!-- 요일 버튼 동적으로 추가 -->
-        </GridLayout>
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="5dp">
+        </LinearLayout>
 
         <Button
             android:id="@+id/btnSet"

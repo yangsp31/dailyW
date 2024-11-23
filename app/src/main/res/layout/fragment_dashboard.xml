@@ -7,12 +7,12 @@
     tools:context=".ui.dashboard.DashboardFragment"
     android:background="#1A1A3A">
 
-    <GridLayout
-        android:id="@+id/gridWeekdays"
+    <LinearLayout
+        android:id="@+id/linearWeekdays"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:layout_marginBottom="25dp"
-        android:columnCount="7"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -25,7 +25,7 @@
         android:layout_height="wrap_content"
         android:columnCount="1"
         android:orientation="vertical"
-        app:layout_constraintTop_toBottomOf="@id/gridWeekdays"
+        app:layout_constraintTop_toBottomOf="@+id/linearWeekdays"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"/>

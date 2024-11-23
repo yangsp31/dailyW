@@ -11,6 +11,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.GridLayout;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -29,7 +30,7 @@ import java.util.Set;
 public class DashboardFragment extends Fragment {
 
     private FragmentDashboardBinding binding;
-    private GridLayout gridWeekdays;
+    private LinearLayout linearWeekdays;
     private GridLayout timeGrid;
     private SharedPreferences sharedPreferences;
     private String selectedWeekday = "";
@@ -43,9 +44,7 @@ public class DashboardFragment extends Fragment {
         binding = FragmentDashboardBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
-        gridWeekdays = root.findViewById(R.id.gridWeekdays);
-        gridWeekdays.setRowCount(1);
-        gridWeekdays.setColumnCount(7);
+        linearWeekdays = root.findViewById(R.id.linearWeekdays);
 
         timeGrid = root.findViewById(R.id.timegrid);
 
@@ -62,15 +61,8 @@ public class DashboardFragment extends Fragment {
             dayButton.setBackgroundResource(R.drawable.noset_button);
             dayButton.setOnClickListener(v -> toggleWeekday((int) v.getTag(), dayButton));
 
-            GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-            params.width = 69;
-            params.rightMargin = 12;
-            params.leftMargin = 12;
-            params.topMargin = 20;
-            params.bottomMargin = 100;
-            params.rowSpec = GridLayout.spec(0);
-            params.columnSpec = GridLayout.spec(i);
-
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(100, LinearLayout.LayoutParams.WRAP_CONTENT);
+            params.setMargins(12, 20, 12, 150);
             dayButton.setLayoutParams(params);
 
             if (String.valueOf(i).equals(selectedWeekday)) {
@@ -78,7 +70,7 @@ public class DashboardFragment extends Fragment {
                 showTimes(String.valueOf(i));
             }
 
-            gridWeekdays.addView(dayButton);
+            linearWeekdays.addView(dayButton);
         }
 
         return root;
@@ -86,7 +78,7 @@ public class DashboardFragment extends Fragment {
 
     private void toggleWeekday(int index, Button button) {
         if (!String.valueOf(index).equals(selectedWeekday)) {
-            Button previousButton = (Button) gridWeekdays.getChildAt(Integer.parseInt(selectedWeekday));
+            Button previousButton = (Button) linearWeekdays.getChildAt(Integer.parseInt(selectedWeekday));
             previousButton.setBackgroundResource(R.drawable.noset_button);
 
             button.setBackgroundResource(R.drawable.set_button);
